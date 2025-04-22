@@ -34,7 +34,7 @@ while true; do
 
     if [ -n "$all_sms" ]; then
         new_sms_json=$(echo "$all_sms" | jq -c '.[] | select(."_id" > '$last_processed_id')')
-#        echo "New sms raw: \"$new_sms_json\""
+
 	if [ ! -z "${new_sms_json}" ]; then
 		echo "Found new sms"
 	        while IFS= read -r new_sms_item; do
@@ -64,10 +64,6 @@ while true; do
                     echo "Time: $timestamp" | tee -a "$LOG_FILE"
                     echo "Body: $body" | tee -a "$LOG_FILE"
                     echo | tee -a "$LOG_FILE"
-
-
-
-#	            echo "$(date) - New SMS (ID: $sms_id) - From: $sender, Body: $body, Received at: $timestamp" | tee -a "$LOG_FILE"
 
 	            # Update the last processed ID
 	            if [[ "$sms_id" -gt "$last_processed_id" ]]; then
