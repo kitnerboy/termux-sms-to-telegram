@@ -51,7 +51,7 @@ while true; do
 		    CONTENT=${CONTENT//</%3C}
 	            CONTENT=${CONTENT//>/%3E}
 
-		    curl -s -X POST $URL -d chat_id=$CHAT_ID -d text="${CONTENT}"
+		    curl -f -X POST $URL -d chat_id=$CHAT_ID -d text="${CONTENT}"
 		    if [[ $? -ne 0 ]]; then
 			echo "$(date) curl failed on sms $sms_id" | tee -a "$LOG_FILE"
 			continue
