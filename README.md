@@ -15,12 +15,9 @@ This shell script (`sms2tg.sh`) is designed to run on Termux, an Android termina
     * Create a Telegram bot using BotFather.  You will need the bot's token.
     * Obtain the chat ID of the Telegram chat where you want to receive the SMS messages.  You can use a bot like [@userinfobot](https://t.me/userinfobot) to get this ID.
 
-* **jq:** Install `jq` in Termux to process JSON data: `pkg install jq`
-* **curl:** Install `curl` in Termux to send messages to Telegram: `pkg install curl`
-
 ## Installation
 
-1.  **Install Prerequisites:** Follow the steps above to install Termux, Termux-boot, and the required Termux packages (`jq`, `curl`).  Ensure Termux has SMS permissions.
+1.  **Install Prerequisites:** Follow the steps above to install Termux and Termux-boot.  Ensure Termux has SMS permissions.
 2.  **Create the Script Directory:** If it doesn't exist, create the `~/.termux/boot` directory:
 
     ```bash
@@ -28,9 +25,9 @@ This shell script (`sms2tg.sh`) is designed to run on Termux, an Android termina
     ```
 
 3.  **Save the Script:**
-    * Copy the `sms2tg.sh` script to the `~/.termux/boot` directory.  You can use a text editor like `nano` within Termux:
+    * Copy the `sms2tg.py` script to the `~/.termux/boot` directory.  You can use a text editor like `nano` within Termux:
         ```bash
-        nano ~/.termux/boot/sms2tg.sh
+        nano ~/.termux/boot/sms2tg.py
         ```
     * Paste the script content into the editor.
     * Save the file.  In `nano`, you would press `Ctrl+O`, then `Enter`, then `Ctrl+X`.
@@ -38,13 +35,13 @@ This shell script (`sms2tg.sh`) is designed to run on Termux, an Android termina
 4.  **Make the Script Executable:** Make the script executable:
 
     ```bash
-    chmod +x ~/.termux/boot/sms2tg.sh
+    chmod +x ~/.termux/boot/sms2tg.py
     ```
 
 5.  **Configure the Script:**
-    * Edit the `sms2tg.sh` script:
+    * Edit the `sms2tg.py` script:
         ```bash
-        nano ~/.termux/boot/sms2tg.sh
+        nano ~/.termux/boot/sms2tg.py
         ```
     * Replace the following placeholders with your actual values:
         * `TOKEN="<YOUR TELEGRAM BOT TOKE>"`:  Replace with your Telegram bot's token.
@@ -62,21 +59,18 @@ The script will automatically start sending new SMS messages to your Telegram ch
 ## How it Works
 
 1.  **Initialization:**
-    * The script starts and logs the start time to `sms_monitor.log`.
-    * It loads the ID of the last processed SMS from `.last_sms_id`.  If the file doesn't exist, it defaults to 0 (or you can change it to the last SMS ID you want to be processed as the first message after the script starts).
+    * It loads the ID of the last processed SMS from `~/.sms2tg/last_processed_id.json`.  If the file doesn't exist, it defaults to -1 (or you can change it to the last SMS ID you want to be processed as the first message after the script starts).
+    * It loads filtere sender names from `~/.sms2tg/filtered_addresses.json`.  If the file doesn't exist, filtered list will be empty. Filter list is used to filter unwanted sender from being redirected in telegram.
 2.  **SMS Polling Loop:**
     * The script enters an infinite loop that runs every 5 seconds.
     * It uses `termux-sms-list` to get a list of all SMS messages on the device in JSON format.
-    * It uses `jq` to filter out only the new SMS messages (those with an ID greater than the last processed ID).
 3.  **Sending to Telegram:**
     * For each new SMS:
-        * It extracts the sender's phone number, the message body, the timestamp and the SMS ID using `jq`.
-        * It formats the message content, replacing &, <, and > characters with their HTML entity encodings (%26, %3C, and %3E respectively) to prevent issues with the Telegram API.
-        * It uses `curl` to send the SMS data to your Telegram bot via the Telegram Bot API's `sendMessage` method.
-        * It logs the successful sending (or failure) to `sms_monitor.log`.
+        * It extracts the sender's phone number, the message body, the timestamp and the SMS ID.
+        * It formats the message content, masking &, <, > and other special characters to prevent issues with the Telegram API.
     * It updates the last processed SMS ID.
 4.  **Saving Last Processed ID:**
-    * The script saves the ID of the latest processed SMS to `.last_sms_id` to ensure that only new messages are sent after a restart.
+    * The script saves the ID of the latest processed SMS to `~/.sms2tg/last_processed_id.json` to ensure that only new messages are sent after a restart.
 5.  **Sleeping:**
     * The script pauses for 5 seconds before checking for new SMS messages again.
 
@@ -84,7 +78,7 @@ The script will automatically start sending new SMS messages to your Telegram ch
 
 * **Security:** This script involves handling sensitive data (SMS messages) and your Telegram bot token.  Ensure your Termux environment is secure and that you keep your bot token confidential.  Anyone with your bot token can send messages from your bot.
 * **Termux-boot Reliability:** Termux-boot's reliability can vary depending on the Android version and device.  If the script doesn't start automatically on boot, you may need to consult the Termux documentation or community for troubleshooting tips.  Make sure Termux is excluded from any battery optimizations.
-* **Error Handling:** The script includes basic error handling for the `curl` command.  You may want to enhance the error handling to make it more robust.  For example, you could add retry logic or send an error message to Telegram.
+* **Error Handling:** The script includes very basic error handling. You may want to enhance the error handling to make it more robust.
 * **Resource Usage:** The script runs in an infinite loop, which may consume some battery and system resources.  Consider adjusting the sleep interval if necessary.
 * **Customization:** You can customize the message format, add more information from the SMS data, or modify the script to suit your specific needs.
 * **SMS Ordering:** SMS messages are not guaranteed to arrive in order.  This script processes them based on their internal ID, which *usually* corresponds to the order of arrival, but there might be edge cases where the order is not strictly preserved.
