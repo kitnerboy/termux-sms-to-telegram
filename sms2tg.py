@@ -200,7 +200,8 @@ def main():
     filtered_addresses = set(load_filtered_addresses())
     last_processed_id = load_last_processed_id()
 
-    logger.info("Bot started. Messages from the following addresses will be filtered:")
+    logger.info("Bot started.")
+    logger.debug("Messages from the following addresses will be filtered:")
     logger.debug(filtered_addresses)
     logger.debug(f"\nLast processed message ID loaded: {last_processed_id}")
 
@@ -221,7 +222,11 @@ def main():
                     continue
 
                 # Check if the message is already processed or from a filtered address
-                if message_id <= last_processed_id or sender_address in filtered_addresses:
+                if message_id <= last_processed_id:
+                    continue
+
+                if sender_address in filtered_addresses:
+                    logger.info(f"Message {message_id} from {sender_address} filtered")
                     continue
 
                 # Process new, unfiltered messages
@@ -240,6 +245,7 @@ def main():
                 if response and response.get("ok"):
                     last_processed_id = message_id
                     save_last_processed_id(last_processed_id)
+                    logger.info(f"Message {message_id} from {sender_address} processed")
                 else:
                     logger.error(f"Failed to send message with ID {message_id}. Halting processing for this cycle.")
                     break # Stop processing messages for this cycle if a send fails
@@ -293,6 +299,10 @@ def main():
                             # Send a confirmation message to the chat
                             confirmation_text = f"✅ Unfiltered messages from `{sender_to_unfilter}`."
                             send_telegram_message(confirmation_text)
+
+                    elif callback_data and callback_data.startswith("status:"):
+                        reply_text = f"✅ Up and running."
+                        send_telegram_message(reply_text)
 
         # Wait for the next check cycle.
         time.sleep(CHECK_INTERVAL_SECONDS)
