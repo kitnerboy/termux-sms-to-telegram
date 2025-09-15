@@ -4,6 +4,7 @@ import json
 import subprocess
 import time
 import requests
+import logging
 
 # --- Telegram Bot Configuration ---
 # IMPORTANT: Replace these with your actual Telegram Bot Token and Chat ID.
@@ -16,15 +17,25 @@ TELEGRAM_BOT_TOKEN = "<YOUT_BOT_TOKEN>"
 TELEGRAM_CHAT_ID = "<CHAT_ID_TO_SEND_MESSAGES_TO>"
 
 # --- System Command Configuration ---
-CONFIG_DIR="/home/alex/Private/sms2tg"
+CONFIG_DIR="/data/data/com.termux/files/home/.sms2tg"
 # File to store the list of filtered addresses.
 FILTERED_ADDRESSES_FILE = f"{CONFIG_DIR}/filtered_addresses.json"
 # File to store the single last processed message ID.
 LAST_PROCESSED_ID_FILE = f"{CONFIG_DIR}/last_processed_id.json"
 # The command to execute to get messages.
-GET_MESSAGES_COMMAND = ["./termux-sms-list"]
+GET_MESSAGES_COMMAND = ["termux-sms-list"]
 # How often to check for new messages in seconds.
 CHECK_INTERVAL_SECONDS = 5
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(f"{CONFIG_DIR}/app.log"),
+        logging.StreamHandler()
+    ]
+)
 
 # A variable to store the last processed message ID.
 # It is loaded from the file on startup.
@@ -38,7 +49,7 @@ def send_telegram_message(text, reply_markup=None):
     Optional `reply_markup` can be used to add inline keyboard buttons.
     """
     if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN" or TELEGRAM_CHAT_ID == "YOUR_TELEGRAM_CHAT_ID":
-        print("Error: Please configure your Telegram bot token and chat ID.")
+        logger.error("Error: Please configure your Telegram bot token and chat ID.")
         return None
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -56,7 +67,7 @@ def send_telegram_message(text, reply_markup=None):
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error sending message to Telegram: {e}")
+        logger.error(f"Error sending message to Telegram: {e}")
         return None
 
 def set_bot_commands():
@@ -64,7 +75,7 @@ def set_bot_commands():
     Sets the bot's menu commands in Telegram.
     """
     if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN":
-        print("Warning: Bot token not configured. Skipping setting commands.")
+        logger.error("Warning: Bot token not configured. Skipping setting commands.")
         return
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
@@ -77,11 +88,11 @@ def set_bot_commands():
         response = requests.post(url, json=payload)
         response.raise_for_status()
         if response.json().get("ok"):
-            print("Successfully set bot commands.")
+            logger.info("Successfully set bot commands.")
         else:
-            print("Failed to set bot commands.")
+            logger.error("Failed to set bot commands.")
     except requests.exceptions.RequestException as e:
-        print(f"Error setting bot commands: {e}")
+        logger.error(f"Error setting bot commands: {e}")
 
 def get_telegram_updates(offset=None):
     """
@@ -95,7 +106,7 @@ def get_telegram_updates(offset=None):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching updates from Telegram: {e}")
+        logger.error(f"Error fetching updates from Telegram: {e}")
         return None
 
 # --- Helper Functions ---
@@ -151,7 +162,7 @@ def get_last_messages():
         messages = json.loads(result.stdout)
         return messages
     except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError) as e:
-        print(f"Error executing command or parsing output: {e}")
+        logger.error(f"Error executing command or parsing output: {e}")
         return []
 
 def format_message_for_chat(message):
@@ -189,9 +200,9 @@ def main():
     filtered_addresses = set(load_filtered_addresses())
     last_processed_id = load_last_processed_id()
 
-    print("Bot started. Messages from the following addresses will be filtered:")
-    print(filtered_addresses)
-    print(f"\nLast processed message ID loaded: {last_processed_id}")
+    logger.info("Bot started. Messages from the following addresses will be filtered:")
+    logger.debug(filtered_addresses)
+    logger.debug(f"\nLast processed message ID loaded: {last_processed_id}")
 
     telegram_update_offset = None
 
@@ -230,7 +241,7 @@ def main():
                     last_processed_id = message_id
                     save_last_processed_id(last_processed_id)
                 else:
-                    print(f"Failed to send message with ID {message_id}. Halting processing for this cycle.")
+                    logger.error(f"Failed to send message with ID {message_id}. Halting processing for this cycle.")
                     break # Stop processing messages for this cycle if a send fails
 
         # 2. Process Telegram updates (like button presses and commands)
@@ -265,7 +276,7 @@ def main():
                         if sender_to_filter not in filtered_addresses:
                             filtered_addresses.add(sender_to_filter)
                             save_filtered_addresses(list(filtered_addresses))
-                            print(f"Messages from '{sender_to_filter}' are now being filtered.")
+                            logger.info(f"Messages from '{sender_to_filter}' are now being filtered.")
 
                             # Send a confirmation message to the chat
                             confirmation_text = f"✅ Filtered messages from `{sender_to_filter}`."
@@ -277,7 +288,7 @@ def main():
                         if sender_to_unfilter in filtered_addresses:
                             filtered_addresses.remove(sender_to_unfilter)
                             save_filtered_addresses(list(filtered_addresses))
-                            print(f"Messages from '{sender_to_unfilter}' are no longer filtered.")
+                            logger.info(f"Messages from '{sender_to_unfilter}' are no longer filtered.")
 
                             # Send a confirmation message to the chat
                             confirmation_text = f"✅ Unfiltered messages from `{sender_to_unfilter}`."
