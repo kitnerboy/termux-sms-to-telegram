@@ -201,9 +201,9 @@ def main():
     last_processed_id = load_last_processed_id()
 
     logger.info("Bot started.")
-    logger.info("Messages from the following addresses will be filtered:")
-    logger.info(filtered_addresses)
-    logger.info(f"\nLast processed message ID loaded: {last_processed_id}")
+    logger.debug("Messages from the following addresses will be filtered:")
+    logger.debug(filtered_addresses)
+    logger.debug(f"\nLast processed message ID loaded: {last_processed_id}")
 
     telegram_update_offset = None
 
@@ -226,6 +226,8 @@ def main():
                     continue
 
                 if sender_address in filtered_addresses:
+                    last_processed_id = message_id
+                    save_last_processed_id(last_processed_id)
                     logger.info(f"Message {message_id} from {sender_address} filtered")
                     continue
 
