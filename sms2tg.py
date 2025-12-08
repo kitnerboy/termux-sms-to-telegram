@@ -5,19 +5,18 @@ import subprocess
 import time
 import requests
 import logging
+import os
 
 # --- Telegram Bot Configuration ---
-# IMPORTANT: Replace these with your actual Telegram Bot Token and Chat ID.
-# You can get a bot token from the "BotFather" bot on Telegram.
-# To find your chat ID, send a message to your new bot and then
-# go to the following URL in your browser:
-# https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
-# Look for the "chat":{"id":...} field.
-TELEGRAM_BOT_TOKEN = "<YOUT_BOT_TOKEN>"
-TELEGRAM_CHAT_ID = "<CHAT_ID_TO_SEND_MESSAGES_TO>"
+TELEGRAM_BOT_TOKEN = None
+TELEGRAM_CHAT_ID = None
 
 # --- System Command Configuration ---
 CONFIG_DIR="/data/data/com.termux/files/home/.sms2tg"
+
+# File to store Telegram configuration (token, chat_id).
+TELEGRAM_CONFIG_FILE = f"{CONFIG_DIR}/telegram_config.json"
+
 # File to store the list of filtered addresses.
 FILTERED_ADDRESSES_FILE = f"{CONFIG_DIR}/filtered_addresses.json"
 # File to store the single last processed message ID.
@@ -26,6 +25,10 @@ LAST_PROCESSED_ID_FILE = f"{CONFIG_DIR}/last_processed_id.json"
 GET_MESSAGES_COMMAND = ["termux-sms-list"]
 # How often to check for new messages in seconds.
 CHECK_INTERVAL_SECONDS = 5
+
+# Create config dir if does not exist
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -43,13 +46,41 @@ last_processed_id = -1
 
 # --- Telegram API Interaction Functions ---
 
+def load_telegram_config():
+    """
+    Loads the Telegram bot token and chat ID from a JSON file.
+    Returns: (token, chat_id) or (None, None) if loading fails.
+    """
+    try:
+        with open(TELEGRAM_CONFIG_FILE, "r") as f:
+            config = json.load(f)
+            # Приводим chat_id к строке, чтобы избежать ошибок типов
+            token = config.get("token")
+            chat_id = str(config.get("chat_id")) if config.get("chat_id") is not None else None
+            
+            if not token or not chat_id:
+                logger.error(f"Error: 'token' or 'chat_id' is missing in {TELEGRAM_CONFIG_FILE}.")
+                return None, None
+
+            return token, chat_id
+            
+    except FileNotFoundError:
+        logger.error(f"Error: Configuration file not found: {TELEGRAM_CONFIG_FILE}")
+        logger.error("Please create this file and add 'token' and 'chat_id' keys.")
+        return None, None
+    except json.JSONDecodeError:
+        logger.error(f"Error: Invalid JSON format in {TELEGRAM_CONFIG_FILE}")
+        return None, None
+
 def send_telegram_message(text, reply_markup=None):
     """
     Sends a message to the specified Telegram chat.
     Optional `reply_markup` can be used to add inline keyboard buttons.
     """
-    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN" or TELEGRAM_CHAT_ID == "YOUR_TELEGRAM_CHAT_ID":
-        logger.error("Error: Please configure your Telegram bot token and chat ID.")
+    global TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID 
+    
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.error("Error: Telegram bot token or chat ID is not configured. Skipping message.")
         return None
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -74,7 +105,9 @@ def set_bot_commands():
     """
     Sets the bot's menu commands in Telegram.
     """
-    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN":
+    global TELEGRAM_BOT_TOKEN
+
+    if not TELEGRAM_BOT_TOKEN:
         logger.error("Warning: Bot token not configured. Skipping setting commands.")
         return
 
@@ -99,6 +132,11 @@ def get_telegram_updates(offset=None):
     Gets updates from the Telegram API, which includes button presses.
     `offset` is used to get only new updates.
     """
+    global TELEGRAM_BOT_TOKEN
+
+    if not TELEGRAM_BOT_TOKEN:
+        return None
+
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     params = {"offset": offset, "timeout": 10}
     try:
@@ -188,12 +226,20 @@ def format_message_for_chat(message):
         f"*Message:* {escaped_body}"
     )
 
+
 def main():
     """
     The main function of the bot. It continuously checks for new messages,
     sends them to Telegram, and listens for filter button presses.
     """
-    global last_processed_id
+    global last_processed_id, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+    # 1. Load Telegram Configuration
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID = load_telegram_config()
+    
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.error("Configuration loading failed. Exiting.")
+        return 
 
     set_bot_commands()
 
@@ -269,7 +315,8 @@ def main():
                             inline_keyboard = []
                             for address in sorted(list(filtered_addresses)):
                                 inline_keyboard.append(
-                                    [{"text": f"🍆 {address}", "callback_data": f"unfilter:{address}"}]
+                                    # Изменено эмодзи
+                                    [{"text": f"🗑️ {address}", "callback_data": f"unfilter:{address}"}] 
                                 )
                             reply_markup = {"inline_keyboard": inline_keyboard}
                             send_telegram_message(text, reply_markup=reply_markup)
